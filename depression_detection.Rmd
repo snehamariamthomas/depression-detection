@@ -1,0 +1,298 @@
+---
+title: "Depression Detection on Reddit: An NLP Approach"  
+
+author: "Sneha Mariam Thomas"
+
+output:
+  html_document
+---
+```{r ref.label=knitr::all_labels(), echo=FALSE, eval=FALSE} 
+# this chunk generates the complete code appendix. 
+# eval=FALSE tells R not to run (``evaluate'') the code here (it was already run before).
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE, fig.align="center")
+```
+&nbsp;
+
+#### __Introduction__  
+
+In recent years, online platforms, particularly social media, have played an increasingly significant role in shaping mental health discourse and providing avenues for self-expression and support. Reddit, as one of the largest online communities, stands out for its diverse discussions, including those related to mental health.  
+Reddit provides an anonymous environment that enables users to share their experiences and seek support without the fear of judgment. This anonymity is particularly important for those dealing with mental health issues, as it can reduce the stigma associated with discussing personal struggles. On Reddit, individuals can find both information and emotional support, contributing to a more open and inclusive dialogue about mental health.  
+
+Accurately detecting mental health concerns on Reddit is crucial for several reasons. The platform's anonymity encourages users to share their true feelings and experiences, providing valuable insights into the mental health issues people face. This candidness helps in understanding these challenges more deeply and empathetically. Moreover, mental illness often carries stigma, which can prevent individuals from seeking help through traditional avenues. Reddit allows users to discuss their struggles in a less stigmatized environment, underscoring the need for effective methods to detect and address these issues. Early detection of mental health concerns can lead to timely support and intervention, offering resources or guidance to individuals who may not have sought help otherwise. Identifying mental health issues on Reddit can also facilitate the delivery of targeted support and resources, such as professional help, supportive communities, or educational content about mental health.  
+
+Detecting mental health concerns on Reddit comes with challenges. Users may describe their mental health experiences in diverse ways, making it difficult to standardize detection methods. Accurate detection also requires understanding the context in which mental health issues are discussed, which can be complex due to the diverse nature of discussions and user interactions. Balancing effective detection with respect for user privacy is crucial, as interventions must be handled delicately to avoid breaching the confidentiality that users value.  
+
+This project aims to detect depression in Reddit posts through a combination of text analysis and machine learning methodologies. Initially, the text data is preprocessed to remove noise and standardize the input, followed by the application of Term Frequency-Inverse Document Frequency (TF-IDF) analysis to highlight distinctive words and phrases associated with depression. Various classification algorithms, including Naive Bayes with unigram and bigram analysis, Ridge regression, and Lasso regression, are evaluated to determine their effectiveness in classifying posts as indicative of depression or not. The goal is to enhance the accuracy of depression detection in online discourse, facilitating more timely and targeted interventions based on linguistic patterns. This approach not only improves the classification process but also offers deeper insights into the linguistic features of depression-related discussions on Reddit.  
+
+&nbsp;
+
+#### __Data__  
+The dataset utilized for this project is sourced from Kaggle and is titled "Depression: Reddit Dataset (Cleaned)." It encompasses 7,731 Reddit posts that have been annotated based on whether the authors have been diagnosed with depression.These posts were made accessible after a cleaning process, which involved converting all text to lowercase and removing punctuation marks. Labels were obtained by querying individuals about their depression diagnosis, followed by collecting messages from these individuals. The dataset exhibits a split of 3,900 instances, representing subreddits of individuals diagnosed with depression, and 3,831 instances, indicating individuals without a depression diagnosis.The dataset can be accessed [here](https://www.kaggle.com/datasets/infamouscoder/depression-reddit-cleaned/data).  
+
+&nbsp;
+
+#### __Research Question__  
+
+__a. In what ways do the words used in posts by individuals with depression diverge from those in posts by individuals without depression?__ 
+
+__b. How well does the classification model, utilizing linguistic features, differentiate between Reddit posts authored by individuals with depression and those by individuals without depression?__  
+
+&nbsp;
+
+#### __Analysis__  
+
+###### __a. Word Analysis__  
+
+A basic comparison of top words featured in posts by depressed and non-depressed individuals offers a preliminary glimpse into the distinct linguistic patterns associated with different mental health states, providing initial clues for further exploration and analysis.  
+
+```{r, message=FALSE, warning=FALSE,fig.width=10, fig.height=6,echo=FALSE}
+data <- read.csv("data/depression_dataset_reddit_cleaned.csv",stringsAsFactors = F)
+dep_corpus <- corpus(data$clean_text)
+
+# Cleaned text and punctuations are removed, and all text is in lowercase
+dep_tokens <- tokens(dep_corpus, remove_numbers = TRUE, remove_symbols = TRUE,remove_url = TRUE)
+
+# Remove custom stopwords and perform word stemming
+dep_tokens <- tokens_remove(dep_tokens, stopwords("en"))
+dep_tokens <- tokens_remove(dep_tokens, pattern = c("http", "amp","tinyurl"))
+#Single occuring alphabets
+dep_tokens <- tokens_select(dep_tokens, min_nchar = 2)
+dep_tokens <- tokens_wordstem(dep_tokens)
+
+dep_dfm <- dfm(dep_tokens)
+#Assigning Doc Labels
+is_depression <- grepl("1", data$is_depression)
+doc_labels <- ifelse(is_depression, "Depression", "Non-Depression")
+dep_dfm_grouped <- dfm_group(dep_dfm, groups = doc_labels)
+
+layout(matrix(c(1, 2), nrow=2), heights=c(1, 4))
+par(mar=rep(0, 4))
+plot.new()
+text(x=0.5, y=0.5, "Top Words from Posts of Individuals with Depression vs Non-Depression")
+textplot_wordcloud(dep_dfm_grouped, comparison = TRUE,main="Title",max_words = 100)
+
+```
+
+While observing top words in posts provides insights into the most commonly used words in each category but may overlook the significance of less frequent but more meaningful terms. It lacks the ability to identify unique linguistic markers or themes specific to each category.
+
+Employing *__Term Frequency-Inverse Document Frequency__* (TF-IDF) captures nuanced language distinctions, offering deeper understanding and context-specific relevance. TF-IDF highlights words distinctive to each group, filtering out common terms to reveal meaningful insights. Analyzing TF-IDF scores can uncover prevalent themes and topics within each group's discourse, shedding light on differences in communication patterns and issues of significance. This comparative analysis not only helps identify unique linguistic markers but also provides valuable context for understanding the distinct experiences and perspectives expressed by individuals with depression versus those without.  
+
+```{r,message=FALSE,warning=FALSE, echo=FALSE}
+
+dp_tfidf <- dfm_tfidf(dep_dfm_grouped)
+top_words <- topfeatures(dp_tfidf, n = 20, groups = docnames(dep_dfm_grouped))
+
+top_words_table <- data.frame(Depression = names(top_words$Depression),Non_Depression =names(top_words$`Non-Depression`))
+
+title <- "Top Words from Posts by People with Depression and Non-Depression <br> (Ranked by TF-IDF Scores)"
+
+top_words_table %>%
+  kable("html", align = "c", caption = title, col.names = c("Depression", "Non-Depression")) %>%
+  kable_styling(full_width = 50)%>% column_spec(c(1:2), border_left = TRUE, border_right = TRUE)
+
+```
+
+Examining the top words based on TF-IDF scores offers a nuanced glimpse into the language dynamics of individuals with depression compared to those without. In posts associated with depression, terms like "therapy," "relationship," and "medication" surface prominently, suggesting a focus on seeking help, navigating interpersonal challenges, and managing mental health treatments. These words reflect a deeper engagement with emotional struggles and coping mechanisms inherent in depression discourse. Conversely, the non-depression category showcases terms such as "twitpic," "awww," and "boo," indicating a lighter conversational tone and a range of topics unrelated to mental health. This contrast underscores the divergent linguistic landscapes between the two groups, with depression-related discussions delving into personal hardships and psychological well-being, while non-depression discussions span various everyday subjects.
+
+However, relying solely on TF-IDF analysis of Reddit posts from individuals with depression and non-depression for mental health classification can be misleading due to the nuanced and multifaceted nature of language, as well as the intricate manifestations of mental health conditions. While TF-IDF captures word importance within individual documents, it may overlook contextual nuances, individualized experiences, and diverse expressions inherent in mental health discussions. Therefore, employing a more sophisticated approach, such as classification algorithms, becomes imperative. These algorithms can incorporate a broader spectrum of features beyond TF-IDF (like ngrams), enabling a more nuanced and comprehensive understanding of mental health states based on online language use.  
+
+&nbsp;
+
+###### __b. Building Classification Algorithm__  
+
+__b.1 Methodology__  
+Preliminarily, Naive Bayes was chosen as the classifier for text classification due to its efficiency in managing large feature spaces and deriving predictions from observed feature likelihoods. Shifting from unigram to bigram analysis, the latter facilitated the capture of contextual dependencies between adjacent words, thereby enriching the model's comprehension of language nuances and bolstering classification accuracy.
+
+Alternatively, regularization techniques were applied to bigrams to address overfitting concerns and enhance the model's generalization capability. By regulating coefficient magnitudes and reducing model complexity, these methods bolster the model's capacity to accurately classify whether a post indicates that the post owner has depression or not.
+
+```{r,message=FALSE,warning=FALSE, echo=FALSE}
+
+set.seed(123)
+train_index <- sample(1:nrow(dep_dfm), 0.8 * nrow(dep_dfm))
+train_dfm <- dep_dfm[train_index, ]
+test_dfm <- dep_dfm[-train_index, ]
+train_labels <- data$is_depression[train_index]
+test_labels <-  data$is_depression[-train_index]
+set.seed(123)
+nb_classifier_uni <- textmodel_nb(train_dfm, y = train_labels)
+predictions_uni <- predict(nb_classifier_uni, newdata = test_dfm)
+prob_uni <- predict(nb_classifier_uni, newdata = test_dfm, type = "prob")
+conf_matrix_uni <- confusionMatrix(predictions_uni, as.factor(test_labels), positive="1")#Depression
+
+accuracy_uni <- (conf_matrix_uni$overall["Accuracy"])
+precision_uni <- (conf_matrix_uni$byClass["Pos Pred Value"])
+recall_uni <- (conf_matrix_uni$byClass["Sensitivity"])
+f1_score_uni <- (2*precision_uni*recall_uni)/sum(precision_uni,recall_uni)
+neg_pred_uni <- (conf_matrix_uni$byClass["Neg Pred Value"])
+
+metric_names_uni <- c("Accuracy", "Precision", "Recall", "F1 Score","Negative Predictive Value")
+metric_values_uni <- c(accuracy_uni, precision_uni, recall_uni, f1_score_uni,neg_pred_uni)
+metrics_df_uni <- data.frame(Metric = metric_names_uni,Value = metric_values_uni)
+rownames(metrics_df_uni) <- NULL
+
+
+#BIGRAMS
+
+dep_tokens_bi <- tokens_ngrams(dep_tokens,n=1:2)
+dep_dfm_bi <- dfm(dep_tokens_bi)
+dep_dfm_bi <- dfm_trim(dep_dfm_bi, min_docfreq = 2)
+train_dfm_bi <- dep_dfm_bi[train_index, ]
+test_dfm_bi<- dep_dfm_bi[-train_index, ]
+train_labels_bi <- data$is_depression[train_index]
+test_labels_bi <-  data$is_depression[-train_index]
+set.seed(123)
+nb_classifier_bi <- textmodel_nb(train_dfm_bi, y = train_labels_bi)
+predictions_bi <- predict(nb_classifier_bi, newdata = test_dfm_bi)
+conf_matrix_bi <- confusionMatrix(predictions_bi, as.factor(test_labels_bi), positive="1")
+
+accuracy_bi <- (conf_matrix_bi$overall["Accuracy"])
+precision_bi <- (conf_matrix_bi$byClass["Pos Pred Value"])
+recall_bi <- (conf_matrix_bi$byClass["Sensitivity"])
+f1_score_bi <- (2*precision_bi*recall_bi)/sum(precision_bi,recall_bi)
+neg_pred_bi <- (conf_matrix_bi$byClass["Neg Pred Value"])
+
+metric_names_bi <- c("Accuracy", "Precision", "Recall", "F1 Score","Negative Predictive Value")
+metric_values_bi <- c(accuracy_bi, precision_bi, recall_bi, f1_score_bi,neg_pred_bi)
+metrics_df_bi <- data.frame(Metric = metric_names_bi,Value = metric_values_bi)
+rownames(metrics_df_bi) <- NULL
+
+
+#RIDGE REGRESSION
+
+registerDoMC(cores=3) 
+set.seed(123)
+ridge <- cv.glmnet(train_dfm_bi,train_labels_bi,family="binomial", alpha=0, nfolds=5, parallel=TRUE, intercept=TRUE,type.measure="class")
+best.lambda.ridge <- which(ridge$lambda==ridge$lambda.1se)
+preds_ridge <- predict(ridge, test_dfm_bi, type="class",lambda=best.lambda.ridge)
+#ridge_prob <- predict(ridge, test_dfm_bi, type = "response",lambda=best.lambda.ridge)
+conf_matrix_ridge <- confusionMatrix(as.factor(preds_ridge), as.factor(test_labels_bi),positive="1")
+
+accuracy_ridge <- (conf_matrix_ridge$overall["Accuracy"])
+precision_ridge <- (conf_matrix_ridge$byClass["Pos Pred Value"])
+recall_ridge <- (conf_matrix_ridge$byClass["Sensitivity"])
+f1_score_ridge <- (2*precision_ridge*recall_ridge)/sum(precision_ridge,recall_ridge)
+neg_pred_ridge <- (conf_matrix_ridge$byClass["Neg Pred Value"])
+
+metric_names_ridge <- c("Accuracy", "Precision", "Recall", "F1 Score","Negative Predictive Value")
+metric_values_ridge <- c(accuracy_ridge, precision_ridge, recall_ridge, f1_score_ridge,neg_pred_ridge)
+metrics_df_ridge  <- data.frame(Metric = metric_names_ridge ,Value = metric_values_ridge )
+rownames(metrics_df_ridge ) <- NULL
+
+#LASSO
+
+set.seed(123)
+lasso <- cv.glmnet(train_dfm_bi,train_labels_bi,family="binomial", alpha=1, nfolds=5, parallel=TRUE, intercept=TRUE,type.measure="class")
+best.lambda.lasso <- which(lasso$lambda==lasso$lambda.1se)
+preds_lasso <- predict(lasso, test_dfm_bi, type="class",lambda=best.lambda.lasso )
+
+conf_matrix_lasso <- confusionMatrix(as.factor(preds_lasso), as.factor(test_labels_bi),positive="1")
+
+accuracy_lasso <- (conf_matrix_lasso$overall["Accuracy"])
+precision_lasso <- (conf_matrix_lasso$byClass["Pos Pred Value"])
+recall_lasso <- (conf_matrix_lasso$byClass["Sensitivity"])
+f1_score_lasso <- (2*precision_lasso*recall_lasso)/sum(precision_lasso,recall_lasso)
+neg_pred_lasso <- (conf_matrix_lasso$byClass["Neg Pred Value"])
+
+metric_names_lasso <- c("Accuracy", "Precision", "Recall", "F1 Score","Negative Predictive Value")
+metric_values_lasso <- c(accuracy_lasso, precision_lasso, recall_lasso, f1_score_lasso,neg_pred_lasso)
+metrics_df_lasso  <- data.frame(Metric = metric_names_lasso ,Value = metric_values_lasso )
+rownames(metrics_df_lasso ) <- NULL
+
+comparison_df <- cbind(metrics_df_uni, metrics_df_bi[, 2], metrics_df_ridge[, 2], metrics_df_lasso[, 2])
+colnames(comparison_df) <- c("Metric", "Unigram:Naive Bayes", "Bigram: Naive Bayes","Ridge:Bigram","Lasso:Bigram")
+
+
+comparison_table <- kable(comparison_df, align = "c", format = "html", 
+                          caption = "Model Evaluation Metrics") %>%add_footnote("Positive Class-1 (Diagnosed with Depression)",notation="none") %>% kable_styling(full_width = 100)%>%column_spec(c(1:5), border_left = TRUE, border_right = TRUE)
+
+```
+
+__b.2 Comparison and Selection of Classification Algorithms__ 
+
+Accuracy provides an overall assessment of the classifier's performance, indicating the proportion of correctly classified instances out of all instances. While high accuracy is desirable, it may not be the sole determining factor when dealing with a sensitive issue like depression. Some of the other factors for consideration are:
+
+- __Precision__ focuses on the accuracy of positive predictions, indicating the proportion of correctly identified depressed individuals among all people classified having depression. 
+
+- __Recall__ measures the ability of the classifier to capture all instances of depression among all depressed individuals. A higher recall score indicates that the classifier is effective in identifying individuals with depression. In the context of this classification, a high recall score ensures that fewer cases of depression go undetected, enabling timely interventions and support for affected individuals.
+
+- __F1 score__ balances precision and recall, providing a harmonic mean that reflects the overall performance of the classifier.A higher F1 score indicates a better balance between accurately identifying depressed individuals (precision) and capturing all instances of depression (recall).
+
+- __Negative Predictive Value__ measures the accuracy of negative predictions, indicating the proportion of correctly identified non-depressed individuals among all instances classified as negative. In this case, a high NPV ensures that individuals who are not depressed are correctly identified, reducing the likelihood of unnecessary interventions.
+
+```{r,message=FALSE,warning=FALSE, echo=FALSE}
+comparison_table
+```
+
+Lasso regularization with bigram analysis emerges as the best method for identifying individuals with depression online. It achieves higher accuracy, precision, and F1 score compared to other techniques, ensuring reliable classification while minimizing false positives. Its robust negative predictive value ensures accurate identification of pots posted by individuals who are not diagnosed with depression, enhancing overall screening effectiveness.The regularization parameter was chosen based on one standard error criteria as it selects the optimal level of regularization that balances model complexity and predictive performance effectively.  
+
+```{r}
+plot(lasso)
+```
+
+489 predictive features were identified by lasso classifcation algorithm. Following are the top 30 predictive features (having highest beta coefficents):
+
+```{r}
+
+beta <- lasso$glmnet.fit$beta[,best.lambda.lasso]
+
+# Create a dataframe with only the words
+df <- data.frame(word = names(beta), 
+                 coef = as.numeric(beta), 
+                 stringsAsFactors = FALSE)
+
+# Order the dataframe by coefficients in descending order
+df <- df[order(df$coef, decreasing = TRUE), ]
+
+# Reset row names for clarity
+rownames(df) <- 1:nrow(df)
+
+# Extract the top 30 words
+top_30_words <- head(df[, "word"], n = 30)
+
+# Reshape the top 30 words into a matrix with 3 rows and 10 columns
+top_words_matrix <- matrix(top_30_words, nrow = 3, byrow = TRUE)
+
+# Convert the matrix to a dataframe for easy display
+top_words_df <- as.data.frame(top_words_matrix)
+
+# Display the table without column names
+library(knitr)
+library(kableExtra)
+
+kable(top_words_df, 
+      col.names = NULL, # Remove column names
+      caption = "Top Predictive Words for Depression Detection", 
+      format = "html") %>%
+  kable_styling(full_width = TRUE, 
+                position = "center")%>%column_spec(c(1:10), border_left = TRUE, border_right = TRUE)%>%
+  row_spec(nrow(top_words_df), extra_css = "border-bottom: 1px solid black;")
+
+
+```
+
+These top 30 words, identified through Lasso regression, offer a nuanced view of the experiences and expressions related to depression:
+
+- __Life Stressors and Pressures__: Terms like "job_fire," "work_wish," and "basic_task" reveal the impact of societal and occupational stressors on mental health. These words reflect how challenges related to employment and daily responsibilities can contribute to feelings of depression.  
+
+- __Emotional Expression and Coping__: Words such as "depress," "anxieti," and "pathet_lazi" capture personal emotional states and responses. They reflect the ways individuals express their feelings and cope with depression, including experiences of sadness, anxiety, and frustration.  
+
+- __Frustration and Uncertainty__: Expressions like "fuck_littl," "idk_edit," and "shit_yesterday" indicate sentiments of frustration and uncertainty. These terms reveal how individuals may struggle with their circumstances and express dissatisfaction or confusion about their situation.  
+
+- __Social Interaction and Support__: Words such as "friend_hope," "someon_talk," and "opposit_sex" highlight the role of interpersonal relationships and social networks in the experience of depression. They emphasize how connections with others can influence one's emotional state and coping mechanisms.  
+
+Overall, these words provide insight into how personal experiences of depression are influenced by social interactions, life challenges, and cultural contexts, offering a comprehensive understanding of mental health from multiple perspectives.
+
+&nbsp;
+
+#### __Conclusion__  
+
+This study implemented advanced natural language processing and machine learning techniques to analyze Reddit posts for the detection of depression. By employing methods such as Term Frequency-Inverse Document Frequency (TF-IDF) and evaluating multiple classification algorithms—Naive Bayes, Ridge Regression, and Lasso Regression—the research identified key linguistic markers associated with depression. Among these, Lasso Regression with bigram analysis emerged as the most effective model, demonstrating superior performance in accuracy, precision, and recall. This model's ability to discern subtle language patterns associated with depression underscores its suitability for reliable detection and timely intervention. The study’s findings contribute to the development of more effective digital mental health tools and emphasize the importance of selecting the optimal model to minimize classification errors and enhance support for individuals, ultimately improving mental health outcomes.
+
+&nbsp;
+
+#### __Appendix: Code__
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE} 
+# this chunk generates the complete code appendix. 
+# eval=FALSE tells R not to run (``evaluate'') the code here (it was already run before).
+
+```
