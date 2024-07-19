@@ -1,4 +1,4 @@
 # depression-detection
-![Alt Text](images/mental_health.jpg)
+![Alt Text](mental health.jpg)
 ###### Image Source:College of Animal Welfare
 
