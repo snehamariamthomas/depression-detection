@@ -24,4 +24,4 @@ The results underscore the importance of effective detection models in digital m
 
 # Data
 
-- **[Depression Reddit Cleaned Dataset](https://www.kaggle.com/datasets/infamouscoder/depression-reddit-cleaned/data)**: The dataset used for this analysis is available on Kaggle.
+- **[Depression Reddit Cleaned Dataset](https://www.kaggle.com/datasets/infamouscoder/depression-reddit-cleaned/data)**: The dataset utilized in this analysis, accessible on Kaggle, includes 7,731 Reddit posts. Each post is annotated to indicate whether the author has been diagnosed with depression.
